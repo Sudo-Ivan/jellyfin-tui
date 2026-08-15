@@ -1,0 +1,148 @@
+name: CI
+
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+      && format('Manual {0} by @{1}', inputs.target, github.actor)
+      || github.event.pull_request.title
+      || github.event.head_commit.message }}
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "scripts/fetch-mpv.sh"
+      - "revive.toml"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - "**.go"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - "scripts/fetch-mpv.sh"
+      - "revive.toml"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Pipeline stage to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - test
+          - lint
+          - build
+      upload_artifact:
+        description: Upload the Linux binary as a workflow artifact
+        required: true
+        default: true
+        type: boolean
+      build_windows:
+        description: Also build and upload a Windows binary
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Install Linting and Security Tools
+        if: github.event_name != 'workflow_dispatch' || inputs.target != 'build'
+        run: |
+          make tools
+
+      - name: Fetch Embedded MPV
+        if: >-
+          (github.event_name == 'workflow_dispatch' && inputs.upload_artifact) ||
+          (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+        run: |
+          make fetch-mpv
+
+      - name: Run CI Pipeline
+        env:
+          TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'all' }}
+        run: |
+          case "$TARGET" in
+            test)
+              make test
+              ;;
+            lint)
+              make fmt fix lint gosec
+              ;;
+            build)
+              make build
+              ;;
+            *)
+              make all
+              ;;
+          esac
+
+      - name: Upload Linux Binary
+        if: >-
+          success() && (
+            (github.event_name == 'workflow_dispatch' && inputs.upload_artifact) ||
+            (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+          )
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jellyfin-tui-linux-amd64
+          path: bin/jellyfin-tui
+          if-no-files-found: error
+          retention-days: 14
+
+  build-windows:
+    name: Build Windows
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.build_windows
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Fetch Embedded MPV
+        run: |
+          bash scripts/fetch-mpv.sh --windows
+
+      - name: Build Windows Binary
+        run: |
+          make windows
+
+      - name: Upload Windows Binary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jellyfin-tui-windows-amd64
+          path: bin/jellyfin-tui.exe
+          if-no-files-found: error
+          retention-days: 14

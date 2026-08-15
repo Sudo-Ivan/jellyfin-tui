@@ -1,0 +1,15 @@
+/bin/
+/jellyfin-tui
+/jellyfin-tui.exe
+*.exe
+*.test
+*.out
+coverage.out
+coverage.html
+internal/mpv/bundle/linux/mpv
+internal/mpv/bundle/linux/mpv.zip
+internal/mpv/bundle/windows/mpv.exe
+internal/mpv/bundle/windows/mpv.zip
+dist/
+.cache/
+*.log
