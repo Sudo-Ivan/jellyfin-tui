@@ -75,6 +75,8 @@ const (
 	castBoxH     = 20
 	fallbackWait = 3 * time.Second
 
+	playedThreshold = 0.9
+
 	statusTranscode = "transcoding fallback"
 	statusOffline   = "offline mode"
 	statusDownload  = "downloading"

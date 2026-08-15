@@ -110,6 +110,13 @@ func (p *Player) Close() error {
 	return nil
 }
 
+// IsClosed returns true if the player's IPC connection is closed.
+func (p *Player) IsClosed() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.ipc == nil
+}
+
 // Load replaces the current file. start is an optional absolute offset.
 func (p *Player) Load(url, title string, start time.Duration, headers []string) error {
 	p.mu.Lock()

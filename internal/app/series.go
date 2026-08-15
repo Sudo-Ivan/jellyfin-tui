@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"sync"
 
 	"jellyfin-tui/internal/jellyfin"
 	"jellyfin-tui/internal/tui"
@@ -11,6 +12,7 @@ type seriesState struct {
 	series       jellyfin.Item
 	seasons      []jellyfin.Item
 	episodes     []jellyfin.Item
+	allEpisodes  []jellyfin.Item
 	selSeason    int
 	selEp, epOff int
 	seasonOff    int
@@ -23,14 +25,36 @@ func (a *App) openSeries(it jellyfin.Item) {
 	a.mode = modeSeries
 	a.status = statusLoading
 	go func() {
-		seasons, err := a.jf.Seasons(it.ID)
+		var (
+			seasons []jellyfin.Item
+			allEps  []jellyfin.Item
+			errS    error
+			errE    error
+		)
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			seasons, errS = a.jf.Seasons(it.ID)
+		}()
+		go func() {
+			defer wg.Done()
+			allEps, errE = a.jf.Episodes(it.ID, "")
+		}()
+		wg.Wait()
+
 		a.apply(func() {
-			if err != nil {
-				a.status = ""
-				a.errMsg = err.Error()
+			a.status = ""
+			if errS != nil {
+				a.errMsg = errS.Error()
+				return
+			}
+			if errE != nil {
+				a.errMsg = errE.Error()
 				return
 			}
 			a.series.seasons = seasons
+			a.series.allEpisodes = allEps
 			a.loadSeason(0)
 		})
 	}()
@@ -43,20 +67,14 @@ func (a *App) loadSeason(idx int) {
 	}
 	a.series.selSeason = idx
 	a.series.selEp = 0
-	a.status = statusLoading
 	sid := a.series.seasons[idx].ID
-	seriesID := a.series.series.ID
-	go func() {
-		eps, err := a.jf.Episodes(seriesID, sid)
-		a.apply(func() {
-			a.status = ""
-			if err != nil {
-				a.errMsg = err.Error()
-				return
-			}
-			a.series.episodes = eps
-		})
-	}()
+	var eps []jellyfin.Item
+	for _, ep := range a.series.allEpisodes {
+		if ep.SeasonID == sid {
+			eps = append(eps, ep)
+		}
+	}
+	a.series.episodes = eps
 }
 
 func (a *App) handleSeries(e tui.Event) {

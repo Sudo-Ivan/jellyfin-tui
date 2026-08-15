@@ -9,9 +9,17 @@ func (p *Player) readLoop() {
 	for {
 		msg, err := p.ipc.read()
 		if err != nil {
-			return
+			break
 		}
 		p.apply(msg)
+	}
+	_ = p.Close()
+	p.mu.Lock()
+	p.idle = true
+	p.eof = true
+	p.mu.Unlock()
+	if p.onEOF != nil {
+		p.onEOF()
 	}
 }
 

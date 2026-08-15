@@ -1,6 +1,8 @@
 package app
 
 import (
+	"sync"
+
 	"jellyfin-tui/internal/jellyfin"
 	"jellyfin-tui/internal/tui"
 )
@@ -35,36 +37,63 @@ func (a *App) reloadHome() {
 	a.status = statusLoading
 	a.home.ready = false
 	go func() {
-		views, err1 := a.jf.Views()
-		resume, _ := a.jf.Resume(homeResumeN)
-		next, _ := a.jf.NextUp(homeNextUpN)
-		latest, _ := a.jf.NewlyAdded(homeLatestN)
+		var (
+			views  []jellyfin.Item
+			resume []jellyfin.Item
+			next   []jellyfin.Item
+			latest []jellyfin.Item
+			err1   error
+		)
+		var wg sync.WaitGroup
+		wg.Add(4)
+		go func() {
+			defer wg.Done()
+			views, err1 = a.jf.Views()
+		}()
+		go func() {
+			defer wg.Done()
+			resume, _ = a.jf.Resume(homeResumeN)
+		}()
+		go func() {
+			defer wg.Done()
+			next, _ = a.jf.NextUp(homeNextUpN)
+		}()
+		go func() {
+			defer wg.Done()
+			latest, _ = a.jf.NewlyAdded(homeLatestN)
+		}()
+		wg.Wait()
+
 		a.apply(func() {
-			a.status = ""
-			if err1 != nil {
-				a.errMsg = err1.Error()
-			}
-			home := jellyfin.Item{ID: idHome, Name: nameHome, Type: jellyfin.TypeHome}
-			a.home.rail = append([]jellyfin.Item{home}, views...)
-			if len(a.downloadItems()) > 0 {
-				a.home.rail = append(a.home.rail, jellyfin.Item{
-					ID: idDownloads, Name: nameDownloads, Type: jellyfin.TypeHome,
-				})
-			}
-			a.home.sections = nil
-			if len(resume) > 0 {
-				a.home.sections = append(a.home.sections, section{"continue", resume})
-			}
-			if len(next) > 0 {
-				a.home.sections = append(a.home.sections, section{"next up", next})
-			}
-			if len(latest) > 0 {
-				a.home.sections = append(a.home.sections, section{nameAdded, latest})
-			}
-			a.rebuildHomeFlat()
-			a.home.ready = true
+			a.applyHome(views, resume, next, latest, err1)
 		})
 	}()
+}
+
+func (a *App) applyHome(views, resume, next, latest []jellyfin.Item, err error) {
+	a.status = ""
+	if err != nil {
+		a.errMsg = err.Error()
+	}
+	home := jellyfin.Item{ID: idHome, Name: nameHome, Type: jellyfin.TypeHome}
+	a.home.rail = append([]jellyfin.Item{home}, views...)
+	if len(a.downloadItems()) > 0 {
+		a.home.rail = append(a.home.rail, jellyfin.Item{
+			ID: idDownloads, Name: nameDownloads, Type: jellyfin.TypeHome,
+		})
+	}
+	a.home.sections = nil
+	if len(resume) > 0 {
+		a.home.sections = append(a.home.sections, section{"continue", resume})
+	}
+	if len(next) > 0 {
+		a.home.sections = append(a.home.sections, section{"next up", next})
+	}
+	if len(latest) > 0 {
+		a.home.sections = append(a.home.sections, section{nameAdded, latest})
+	}
+	a.rebuildHomeFlat()
+	a.home.ready = true
 }
 
 func (a *App) rebuildHomeFlat() {

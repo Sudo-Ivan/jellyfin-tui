@@ -31,8 +31,12 @@ func (a *App) openItem(it jellyfin.Item) {
 }
 
 func (a *App) ensurePlayer() error {
-	if a.player != nil {
+	if a.player != nil && !a.player.IsClosed() {
 		return nil
+	}
+	if a.player != nil {
+		_ = a.player.Close()
+		a.player = nil
 	}
 	p, err := mpv.Start(func() {
 		a.apply(func() { a.handleEOF() })
@@ -119,6 +123,10 @@ func (a *App) handleEOF() {
 	}
 	next := a.now.next
 	a.stopCurrent()
+	if a.player.IsClosed() {
+		_ = a.player.Close()
+		a.player = nil
+	}
 	if a.autoNext && next != nil {
 		a.playItem(*next)
 		return
@@ -128,7 +136,7 @@ func (a *App) handleEOF() {
 }
 
 func (a *App) stopCurrent() {
-	if a.now == nil || a.player == nil || a.jf == nil {
+	if a.now == nil || a.player == nil {
 		return
 	}
 	st := a.player.Status()
@@ -136,9 +144,60 @@ func (a *App) stopCurrent() {
 	pos, dur := st.Pos, st.Dur
 	t := a.now.play
 	t.ItemID = id
-	go func() {
-		_ = a.jf.Stopped(t, pos, dur)
-	}()
+
+	it := a.now.item
+	if st.EOF {
+		it.UserData.Played = true
+		it.UserData.PlaybackPositionTicks = 0
+	} else {
+		it.UserData.PlaybackPositionTicks = int64(pos.Nanoseconds() / 100)
+		if dur > 0 && float64(pos)/float64(dur) > playedThreshold {
+			it.UserData.Played = true
+			it.UserData.PlaybackPositionTicks = 0
+		}
+	}
+	a.updateItemState(it)
+
+	if a.jf != nil {
+		go func() {
+			_ = a.jf.Stopped(t, pos, dur)
+			updated, err := a.jf.Item(id)
+			if err == nil {
+				a.apply(func() {
+					a.updateItemState(updated)
+				})
+			}
+		}()
+	}
+}
+
+func (a *App) updateItemState(it jellyfin.Item) {
+	for sIdx, s := range a.home.sections {
+		for i, item := range s.items {
+			if item.ID == it.ID {
+				a.home.sections[sIdx].items[i] = it
+			}
+		}
+	}
+	a.rebuildHomeFlat()
+
+	for i, item := range a.browse.items {
+		if item.ID == it.ID {
+			a.browse.items[i] = it
+		}
+	}
+	a.browse.filterShown()
+
+	for i, item := range a.series.episodes {
+		if item.ID == it.ID {
+			a.series.episodes[i] = it
+		}
+	}
+	for i, item := range a.series.allEpisodes {
+		if item.ID == it.ID {
+			a.series.allEpisodes[i] = it
+		}
+	}
 }
 
 func (a *App) maybeProgress() {
