@@ -13,7 +13,7 @@ all: fmt fix test lint gosec build
 
 build:
 	mkdir -p $(BINDIR)
-	$(GO) build -trimpath -ldflags='-s -w' -o $(BIN) $(PKG)
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags='-s -w' -o $(BIN) $(PKG)
 
 fetch-mpv:
 	bash scripts/fetch-mpv.sh --all
@@ -29,7 +29,7 @@ windows:
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags='-s -w' -o $(BIN).exe $(PKG)
 
 test:
-	$(GO) test ./...
+	CGO_ENABLED=0 $(GO) test ./...
 
 fmt:
 	$(GO) fmt ./...
@@ -41,7 +41,7 @@ lint:
 	$(REVIVE) -config revive.toml -formatter friendly ./...
 
 gosec:
-	$(GOSEC) -quiet ./...
+	CGO_ENABLED=0 $(GOSEC) -quiet ./...
 
 tools:
 	$(GO) install $(REVIVE_VER)
