@@ -1,12 +1,18 @@
 package mpv
 
 import (
+	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
 
-const ldLinuxTest = "ld-linux-x86-64.so.2"
+const (
+	ldLinuxTest  = "ld-linux-x86-64.so.2"
+	minBundleZip = 1 << 20
+	mpvVerFlag   = "--version"
+)
 
 func TestEnsureSharunSharedLinksLib(t *testing.T) {
 	dir := t.TempDir()
@@ -64,5 +70,35 @@ func TestFinishBundleChmodAndLink(t *testing.T) {
 	link, err := os.Readlink(filepath.Join(dir, sharedDir))
 	if err != nil || link != libDir {
 		t.Fatalf("shared %q %v", link, err)
+	}
+}
+
+func TestLinuxBundleSharunExec(t *testing.T) {
+	raw, err := bundleBytes()
+	if err != nil || len(raw) < minBundleZip {
+		t.Skip("no portable mpv zip")
+	}
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if err := unzipRoot(root, raw); err != nil {
+		t.Fatal(err)
+	}
+	found := findExe(dir, mpvName())
+	if found == "" {
+		t.Fatal("no mpv in zip")
+	}
+	if _, err := finishBundle(dir, found); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Readlink(filepath.Join(dir, sharedDir)); err != nil {
+		t.Fatal("shared symlink missing")
+	}
+	out, err := exec.Command(found, mpvVerFlag).CombinedOutput() // #nosec G204
+	if err != nil || !bytes.Contains(out, []byte(exeUnix)) {
+		t.Fatalf("mpv %s %v", out, err)
 	}
 }
