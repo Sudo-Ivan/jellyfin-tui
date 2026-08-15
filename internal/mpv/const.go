@@ -23,6 +23,12 @@ const (
 	exeWin    = "mpv.exe"
 	ytdlNo    = "--ytdl=no"
 
+	sharedDir        = "shared"
+	libDir           = "lib"
+	ldLinuxPrefix    = "ld-linux"
+	ldMuslPrefix     = "ld-musl"
+	maxSymlinkTarget = 4 << 10
+
 	ipcSetProp  = "set_property"
 	flagReplace = "replace"
 	optStart    = "start"

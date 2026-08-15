@@ -41,7 +41,7 @@ func extractBundle() (string, error) {
 	exe := mpvName()
 	if st, err := os.Stat(dir); err == nil && st.IsDir() {
 		if found := findExe(dir, exe); found != "" {
-			return found, nil
+			return finishBundle(dir, found)
 		}
 	}
 	target := filepath.Join(dir, exe)
@@ -61,12 +61,12 @@ func extractBundle() (string, error) {
 		if found == "" {
 			return "", fmt.Errorf("embedded zip has no %s", exe)
 		}
-		return found, nil
+		return finishBundle(dir, found)
 	}
 	if err := root.WriteFile(exe, raw, binPerm); err != nil {
 		return "", err
 	}
-	return target, nil
+	return finishBundle(dir, target)
 }
 
 func unzipRoot(root *os.Root, raw []byte) error {
@@ -95,6 +95,9 @@ func unzipOne(root *os.Root, f *zip.File) error {
 			return err
 		}
 	}
+	if f.Mode()&os.ModeSymlink != 0 {
+		return writeZipSymlink(root, f, name)
+	}
 	return writeZipFile(root, f, name)
 }
 
@@ -105,6 +108,38 @@ func zipRel(name string) string {
 		return ""
 	}
 	return name
+}
+
+func writeZipSymlink(root *os.Root, f *zip.File, name string) error {
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	raw, err := io.ReadAll(io.LimitReader(rc, maxSymlinkTarget+1))
+	if err != nil {
+		return err
+	}
+	if len(raw) > maxSymlinkTarget {
+		return fmt.Errorf("zip symlink too long")
+	}
+	target := zipSymlinkTarget(name, string(raw))
+	if target == "" {
+		return nil
+	}
+	return root.Symlink(target, name)
+}
+
+func zipSymlinkTarget(name, target string) string {
+	target = strings.ReplaceAll(strings.TrimSpace(target), `\`, "/")
+	if target == "" || path.IsAbs(target) {
+		return ""
+	}
+	cleaned := path.Clean(path.Join(path.Dir(name), target))
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return ""
+	}
+	return target
 }
 
 func writeZipFile(root *os.Root, f *zip.File, name string) error {

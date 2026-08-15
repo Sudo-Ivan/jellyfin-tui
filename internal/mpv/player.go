@@ -7,6 +7,7 @@
 package mpv
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -57,14 +58,20 @@ func Start(onEOF func()) (*Player, error) {
 	}
 	_ = os.Remove(sock)
 	cmd := exec.Command(bin, mpvArgs(sock)...) // #nosec G204
+	stderr := &bytes.Buffer{}
+	cmd.Stderr = stderr
+	if null := openDevNull(); null != nil {
+		cmd.Stdin = null
+		cmd.Stdout = null
+		defer null.Close()
+	}
 	prepareCmd(cmd)
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start mpv: %w", err)
 	}
 	conn, err := dialIPC(sock, ipcTimeout)
 	if err != nil {
-		_ = cmd.Process.Kill()
-		return nil, fmt.Errorf("mpv ipc: %w", err)
+		return nil, abortPlayer(cmd, sock, stderr, err)
 	}
 	p := &Player{cmd: cmd, ipc: conn, bin: bin, sock: sock, vol: defaultVolume, idle: true, onEOF: onEOF}
 	go p.readLoop()

@@ -154,9 +154,17 @@ fetch_linux() {
 		fi
 	done
 	rm -f "$linux_dir/mpv.zip"
+	# sharun looks up the dynamic linker under shared/, not lib/.
+	if [[ -d "$extract/lib" && ! -e "$extract/shared" ]]; then
+		ln -sfn lib "$extract/shared"
+	fi
 	(
 		cd "$extract"
-		zip -q -r "$linux_dir/mpv.zip" bin lib share
+		zip_args=(bin lib share)
+		[[ -e shared ]] && zip_args+=(shared)
+		[[ -e AppRun ]] && zip_args+=(AppRun)
+		[[ -e sharun ]] && zip_args+=(sharun)
+		zip -q -y -r "$linux_dir/mpv.zip" "${zip_args[@]}"
 	)
 	echo "wrote $linux_dir/mpv.zip"
 }
