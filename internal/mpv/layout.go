@@ -18,13 +18,34 @@ func finishBundle(dir, exePath string) (string, error) {
 
 func ensureSharunShared(dir string) error {
 	shared := filepath.Join(dir, sharedDir)
-	if _, err := os.Lstat(shared); err == nil {
-		return nil
+	st, err := os.Lstat(shared)
+	if err == nil {
+		if st.Mode()&os.ModeSymlink != 0 || st.IsDir() {
+			return nil
+		}
+		if err := os.Remove(shared); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
 	}
 	if !hasSharunLoader(filepath.Join(dir, libDir)) {
 		return nil
 	}
 	return os.Symlink(libDir, shared)
+}
+
+func sharunReady(dir string) bool {
+	if hasSharunLoader(filepath.Join(dir, sharedDir)) {
+		return true
+	}
+	if hasSharunLoader(filepath.Join(dir, sharedDir, libDir)) {
+		return true
+	}
+	if _, err := os.Lstat(filepath.Join(dir, sharedDir)); err != nil {
+		return false
+	}
+	return hasSharunLoader(filepath.Join(dir, libDir))
 }
 
 func hasSharunLoader(lib string) bool {

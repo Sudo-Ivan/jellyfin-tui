@@ -10,6 +10,7 @@ import (
 
 const (
 	ldLinuxTest  = "ld-linux-x86-64.so.2"
+	ldPayload    = "x"
 	minBundleZip = 1 << 20
 	mpvVerFlag   = "--version"
 )
@@ -21,7 +22,7 @@ func TestEnsureSharunSharedLinksLib(t *testing.T) {
 		t.Fatal(err)
 	}
 	ld := filepath.Join(lib, ldLinuxTest)
-	if err := os.WriteFile(ld, []byte("x"), zipFilePerm); err != nil {
+	if err := os.WriteFile(ld, []byte(ldPayload), zipFilePerm); err != nil {
 		t.Fatal(err)
 	}
 	if err := ensureSharunShared(dir); err != nil {
@@ -52,7 +53,7 @@ func TestFinishBundleChmodAndLink(t *testing.T) {
 	if err := os.Mkdir(lib, zipDirPerm); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(lib, ldLinuxTest), []byte("x"), zipFilePerm); err != nil {
+	if err := os.WriteFile(filepath.Join(lib, ldLinuxTest), []byte(ldPayload), zipFilePerm); err != nil {
 		t.Fatal(err)
 	}
 	exe := filepath.Join(dir, exeUnix)
@@ -94,11 +95,53 @@ func TestLinuxBundleSharunExec(t *testing.T) {
 	if _, err := finishBundle(dir, found); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Readlink(filepath.Join(dir, sharedDir)); err != nil {
-		t.Fatal("shared symlink missing")
+	if !sharunReady(dir) {
+		t.Fatal("sharun loader missing")
 	}
 	out, err := exec.Command(found, mpvVerFlag).CombinedOutput() // #nosec G204
 	if err != nil || !strings.Contains(string(out), exeUnix) {
 		t.Fatalf("mpv %s %v", out, err)
+	}
+}
+
+func TestEnsureSharunSharedKeepsDir(t *testing.T) {
+	dir := t.TempDir()
+	shared := filepath.Join(dir, sharedDir)
+	if err := os.Mkdir(shared, zipDirPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(shared, ldLinuxTest), []byte(ldPayload), zipFilePerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureSharunShared(dir); err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Lstat(shared)
+	if err != nil || !st.IsDir() {
+		t.Fatalf("shared %v %v", st, err)
+	}
+	if !sharunReady(dir) {
+		t.Fatal("not ready")
+	}
+}
+
+func TestEnsureSharunSharedReplacesFile(t *testing.T) {
+	dir := t.TempDir()
+	lib := filepath.Join(dir, libDir)
+	if err := os.Mkdir(lib, zipDirPerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(lib, ldLinuxTest), []byte(ldPayload), zipFilePerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, sharedDir), []byte(libDir), zipFilePerm); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureSharunShared(dir); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.Readlink(filepath.Join(dir, sharedDir))
+	if err != nil || got != libDir {
+		t.Fatalf("readlink %q %v", got, err)
 	}
 }
