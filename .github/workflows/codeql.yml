@@ -57,16 +57,16 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@3d3c42e970a256a29d67566144e5f760e1d88045 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "go.mod"
           cache: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@5595cca9f95d53a90623a9686036814986311b51 # v4.37.6
+        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           languages: ${{ matrix.language }}
 
@@ -75,4 +75,4 @@ jobs:
           make build
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@5595cca9f95d53a90623a9686036814986311b51 # v4.37.6
+        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6

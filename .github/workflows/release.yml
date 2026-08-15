@@ -15,10 +15,10 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@3d3c42e970a256a29d67566144e5f760e1d88045 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "go.mod"
           cache: true
@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@3d3c42e970a256a29d67566144e5f760e1d88045 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: "go.mod"
           cache: true
@@ -90,7 +90,7 @@ jobs:
           path: dist
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@fe965f7af51af5f2602596916f38a38df2e33de0 # v3.0.2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           files: |
             dist/jellyfin-tui
