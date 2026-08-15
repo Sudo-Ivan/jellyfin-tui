@@ -14,6 +14,8 @@ func TestOracleJellyfinItemsContract(t *testing.T) {
 	oracleNewlyAdded(t)
 	oraclePaths(t)
 	oracleIndependentEncode(t)
+	oracleAuthHeader(t)
+	oraclePlayBody(t)
 	_, _ = fmt.Println("QUERY_ORACLE_PROVED")
 }
 
@@ -77,5 +79,24 @@ func oracleIndependentEncode(t *testing.T) {
 	got := ItemQuery{Genres: []string{nameAction, "Sci-Fi"}, Years: []int{yr1999, yr2001}}.Values().Encode()
 	if got != u.Encode() {
 		t.Fatal("independent url.Values oracle mismatch")
+	}
+}
+
+func oracleAuthHeader(t *testing.T) {
+	t.Helper()
+	c := New("https://x", "pc", "dev-1")
+	c.Token = "tok"
+	got := c.authHeader()
+	want := `MediaBrowser Client="` + clientName + `", Device="pc", DeviceId="dev-1", Version="` + clientVersion + `", Token="tok"`
+	if got != want {
+		t.Fatalf("auth header %q want %q", got, want)
+	}
+}
+
+func oraclePlayBody(t *testing.T) {
+	t.Helper()
+	body := playBody(PlayTarget{ItemID: idA, MediaSourceID: idB}, 0, 0, false)
+	if body["ItemId"] != idA || body["MediaSourceId"] != idB || body["PlayMethod"] != playDirect {
+		t.Fatalf("play body %+v", body)
 	}
 }

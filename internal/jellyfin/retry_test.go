@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -76,12 +77,12 @@ func TestGetCachesUntilInvalidate(t *testing.T) {
 
 func TestRespCacheExpiry(t *testing.T) {
 	c := newCache(time.Millisecond)
-	c.put("/x", []byte("a"))
-	if _, ok := c.get("/x"); !ok {
+	c.put(errPath, []byte("a"))
+	if _, ok := c.get(errPath); !ok {
 		t.Fatal("fresh")
 	}
 	time.Sleep(3 * time.Millisecond)
-	if _, ok := c.get("/x"); ok {
+	if _, ok := c.get(errPath); ok {
 		t.Fatal("stale")
 	}
 }
@@ -90,6 +91,8 @@ type timeoutErr struct{}
 
 func (timeoutErr) Error() string { return "i/o timeout" }
 func (timeoutErr) Timeout() bool { return true }
+
+const errPath = "/x"
 
 func TestIsAuthAndTemp(t *testing.T) {
 	if !IsAuth(StatusError{Code: httpAuthMin}) || !IsAuth(StatusError{Code: httpForbidden}) {
@@ -103,5 +106,35 @@ func TestIsAuthAndTemp(t *testing.T) {
 	}
 	if IsTemp(errors.New("nope")) {
 		t.Fatal("plain")
+	}
+}
+
+func TestDoRetries429(t *testing.T) {
+	n := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n++
+		if n < maxTries {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.Header().Set("Content-Type", headerJSON)
+		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, emptyItems)
+	}))
+	defer srv.Close()
+	if _, err := testClient(srv).Views(); err != nil {
+		t.Fatal(err)
+	}
+	if n != maxTries {
+		t.Fatalf("tries %d", n)
+	}
+}
+
+func TestStatusErrTruncatesBody(t *testing.T) {
+	long := strings.Repeat("x", maxErrRunes+50)
+	err := statusErr("GET", errPath, http.StatusBadRequest, "400", []byte(long))
+	se, ok := err.(StatusError)
+	if !ok || len(se.Body) != maxErrRunes {
+		t.Fatalf("body len %d", len(se.Body))
 	}
 }
