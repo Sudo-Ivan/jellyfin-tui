@@ -1,10 +1,10 @@
 package mpv
 
 import (
-	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -98,7 +98,7 @@ func TestLinuxBundleSharunExec(t *testing.T) {
 		t.Fatal("shared symlink missing")
 	}
 	out, err := exec.Command(found, mpvVerFlag).CombinedOutput() // #nosec G204
-	if err != nil || !bytes.Contains(out, []byte(exeUnix)) {
+	if err != nil || !strings.Contains(string(out), exeUnix) {
 		t.Fatalf("mpv %s %v", out, err)
 	}
 }
